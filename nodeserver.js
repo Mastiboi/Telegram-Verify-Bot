@@ -12,7 +12,11 @@ app.use(cors({ origin: "https://telegram-verify-bot-818r.onrender.com" }));
 async function initBrowser() {
     if (browser) return;
 
-    browser = await chromium.launch({ headless: false });
+    const browser = await playwright.chromium.launch({
+        headless: true,  // Ensure it's running headless
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      });
+      
     page = await browser.newPage();
 
     try {
