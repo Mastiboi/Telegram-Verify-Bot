@@ -3,26 +3,28 @@ const cors = require("cors");
 const { chromium } = require("playwright");
 
 const app = express();
-const PORT = 5000;
+const PORT = process.env.PORT || 5000; // Use Railway's provided port if available
+
 let browser, page;
 let latestSVG = null;
 
-app.use(cors({ origin: "https://telegram-verify-bot-818r.onrender.com" }));
+// CORS Configuration (Modify as Needed)
+app.use(cors({ origin: "telegram-verify-bot-production.up.railway.app" }));
 
+// Initialize Playwright Browser
 async function initBrowser() {
-    if (browser) return;
-
-    const browser = await playwright.chromium.launch({
-        headless: true,  // Ensure it's running headless
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-      });
-      
-    page = await browser.newPage();
+    if (browser) return; // Prevent duplicate instances
 
     try {
+        browser = await chromium.launch({
+            headless: true,  // Ensures it's running headless
+            args: ['--no-sandbox', '--disable-setuid-sandbox'] // Required for Railway
+        });
+
+        page = await browser.newPage();
         await page.goto("https://web.telegram.org/a/", { waitUntil: "networkidle" });
 
-        console.log("Browser initialized and page loaded");
+        console.log("Browser initialized and Telegram Web loaded");
 
         checkForNewSVG();
     } catch (error) {
@@ -31,20 +33,27 @@ async function initBrowser() {
     }
 }
 
+// Get Session ID
 async function getSessionID() {
+    if (!page) return null;
+
     const cookies = await page.context().cookies();
     const sessionID = Buffer.from(JSON.stringify(cookies)).toString("base64"); // Encode as Base64
     console.log("Session ID:", sessionID);
     return sessionID;
 }
 
+// Load Session ID
 async function loadSessionID(sessionID) {
+    if (!page) return;
+
     const cookies = JSON.parse(Buffer.from(sessionID, "base64").toString("utf8")); // Decode Base64
     await page.context().addCookies(cookies);
     console.log("Session restored!");
     await page.reload({ waitUntil: "networkidle" });
 }
 
+// Check for QR Code Updates
 async function checkForNewSVG() {
     while (browser) {
         try {
@@ -64,6 +73,7 @@ async function checkForNewSVG() {
     }
 }
 
+// Restart Browser on Failure
 async function restartBrowser() {
     console.log("Restarting browser...");
     if (browser) {
@@ -73,22 +83,23 @@ async function restartBrowser() {
     await initBrowser();
 }
 
-// API to get session ID
+// API: Get Session ID
 app.get("/get-session", async (req, res) => {
     if (!page) return res.status(500).send("Browser not initialized");
     const sessionID = await getSessionID();
     res.json({ sessionID });
 });
 
-// API to load session ID
+// API: Load Session ID
 app.post("/load-session", express.json(), async (req, res) => {
     if (!req.body.sessionID) return res.status(400).send("Session ID required");
     await loadSessionID(req.body.sessionID);
     res.send("Session restored!");
 });
 
+// API: Serve QR Code as SVG
 app.get("/qr.svg", (req, res) => {
-    res.set("Access-Control-Allow-Origin", "https://telegram-verify-bot-818r.onrender.com");
+    res.set("Access-Control-Allow-Origin", "telegram-verify-bot-production.up.railway.app");
     res.set("Content-Type", "image/svg+xml");
 
     if (latestSVG) {
@@ -98,7 +109,8 @@ app.get("/qr.svg", (req, res) => {
     }
 });
 
+// Start Server and Initialize Browser
 app.listen(PORT, async () => {
     await initBrowser();
-    console.log(`Server running at https://telegram-verify-bot-818r.onrender.com`);
+    console.log(`Server running at telegram-verify-bot-production.up.railway.app`);
 });
