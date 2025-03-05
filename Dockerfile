@@ -1,24 +1,18 @@
-# Use official Playwright image with dependencies
-FROM mcr.microsoft.com/playwright:v1.40.0-focal
+# Use official Node.js image
+FROM node:18
 
-# Set working directory inside the container
+# Set working directory
 WORKDIR /app
 
-# Copy package files first (for caching)
+# Copy package files and install dependencies
 COPY package.json package-lock.json ./
+RUN npm install && npx playwright install --with-deps
 
-# Install dependencies
-RUN npm install
-
-# Install Playwright Browsers
-RUN npx playwright install --with-deps
-
-# Copy the rest of the application files
+# Copy the rest of the app
 COPY . .
 
-# Expose correct port (Railway sets ENV variable)
-ENV PORT=5000
-EXPOSE $PORT
+# Expose port 5000
+EXPOSE 5000
 
-# Run the application
+# Start the server
 CMD ["node", "nodeserver.js"]
