@@ -26,30 +26,11 @@ async function initBrowser() {
         await page.goto("https://web.telegram.org/a/", { waitUntil: "networkidle" });
 
         console.log("✅ Telegram Web loaded!");
-        await checkForNewSVG();
+        checkForNewSVG();
     } catch (error) {
         console.error("❌ Error initializing browser:", error);
         await restartBrowser();
     }
-}
-
-// ✅ Get Session ID
-async function getSessionID() {
-    if (!page) return null;
-
-    const cookies = await page.context().cookies();
-    const sessionID = Buffer.from(JSON.stringify(cookies)).toString("base64");
-    return sessionID;
-}
-
-// ✅ Load Session ID
-async function loadSessionID(sessionID) {
-    if (!page) return;
-
-    const cookies = JSON.parse(Buffer.from(sessionID, "base64").toString("utf8"));
-    await page.context().addCookies(cookies);
-    console.log("🔄 Session restored!");
-    await page.reload({ waitUntil: "networkidle" });
 }
 
 // ✅ Fetch QR Code Updates (Retries on Failure)
@@ -57,8 +38,6 @@ async function checkForNewSVG() {
     while (browser) {
         try {
             console.log("🔄 Checking for QR code...");
-            await page.reload({ waitUntil: "networkidle" });
-
             await page.waitForSelector(".qr-container svg", { timeout: 40000 });
             const svg = await page.evaluate(() => document.querySelector(".qr-container svg")?.outerHTML);
 
@@ -86,10 +65,25 @@ async function restartBrowser() {
 }
 
 // ✅ API: Get Session ID
+async function getSessionID() {
+    if (!page) return null;
+    const cookies = await page.context().cookies();
+    return Buffer.from(JSON.stringify(cookies)).toString("base64");
+}
+
+// ✅ API: Load Session ID
+async function loadSessionID(sessionID) {
+    if (!page) return;
+    const cookies = JSON.parse(Buffer.from(sessionID, "base64").toString("utf8"));
+    await page.context().addCookies(cookies);
+    console.log("🔄 Session restored!");
+    await page.reload({ waitUntil: "networkidle" });
+}
+
+// ✅ API: Get Session ID
 app.get("/get-session", async (req, res) => {
     if (!page) return res.status(500).send("Browser not initialized");
-    const sessionID = await getSessionID();
-    res.json({ sessionID });
+    res.json({ sessionID: await getSessionID() });
 });
 
 // ✅ API: Load Session ID
